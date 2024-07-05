@@ -1,0 +1,36 @@
+name: Draw
+
+on:
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Date of the lottery event."
+        required: true
+
+jobs:
+  draw:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch latest code
+        uses: actions/checkout@v4
+      - name: Setup lottery environment
+        run: |
+          curl -LO https://github.com/acg-box/lottery/releases/download/${{ github.event.inputs.date }}/lottery-x86_64-unknown-linux-gnu.zst
+          zstd -o lottery -d lottery-x86_64-unknown-linux-gnu.zst
+          rm lottery-x86_64-unknown-linux-gnu.zst
+          chmod u+x lottery
+          sudo mv lottery /usr/bin
+      - name: Run
+        run: lottery --list res/${{ github.event.inputs.date }}.json
+      - name: Create PR
+        env:
+          GITHUB_TOKEN: ${{ secrets.PR }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          BRANCH_NAME="draw-${{ github.event.inputs.date }}"
+          git checkout -b $BRANCH_NAME
+          git add .
+          git commit -am "Draw the winner of ${{ github.event.inputs.date }}"
+          git push origin $BRANCH_NAME
+          gh pr create --title "Draw the winner of ${{ github.event.inputs.date }}" --body "This PR contains the results of the lottery draw for ${{ github.event.inputs.date }}." --head $BRANCH_NAME --base main
